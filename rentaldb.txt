@@ -1,0 +1,529 @@
+/*
+Author: Henry Vendittelli
+Date: 2024-02-16
+Description: This is an SQL script that creates a database schema for a rental property ER diagram that has been updated with recent feedback.
+
+(artificial data has been generated for demonstrative purposes)
+*/
+
+DROP DATABASE IF EXISTS rentalDB;
+CREATE DATABASE IF NOT EXISTS rentalDB;
+USE rentalDB;
+
+/*
+Entity: Person
+- Primary Key Attribute: ID (2 letters, 3 numbers)
+- Attribute: Name (First, Last)
+
+Renter, Owner, Property Manager are Person
+*/
+CREATE TABLE Person(
+    -- primary key
+    -- uses check constraint to ensure ID is in the format of 2 letters followed by 3 numbers
+    ID CHAR(5) NOT NULL PRIMARY KEY CHECK (ID RLIKE '^[A-Za-z]{2}[0-9]{3}$'),
+    
+    -- attributes
+    fname VARCHAR(60) NOT NULL,
+    lname VARCHAR(60) NOT NULL,
+    phoneNum CHAR(10)
+);
+
+
+/*
+Entity: Rental Property
+- Attribute: Accessibility
+- Attribute: Date
+- Attribute: Cost
+- Primary Key Attribute: ID
+- Attribute: Laundry
+- Attribute: Num Bedrooms
+- Attribute: Num Bathrooms
+- Attribute: Parking
+- Attribute: Address (Street, City, Province, Postal Code, Apartment Num)
+*/
+CREATE TABLE RentalProperty(
+    -- primary key
+    ID INT NOT NULL PRIMARY KEY,
+
+    -- attributes
+    Accessibility BOOLEAN,
+    Date DATE,
+    Cost DECIMAL(10, 2),
+    Laundry BOOLEAN,
+    NumBedrooms INT,
+    NumBathrooms INT,
+    Parking BOOLEAN,
+    
+    -- address info
+    Street VARCHAR(255),
+    City VARCHAR(255),
+    Province CHAR(2),
+    PostalCode CHAR(6),
+    ApartmentNum VARCHAR(10)
+);
+
+
+/*
+Entity: House
+- Attribute: Fenced yard
+- Attribute: isDetached
+*/
+CREATE TABLE House(
+    -- primary key
+    PropertyID INT NOT NULL PRIMARY KEY,
+
+    -- attributes
+    FencedYard BOOLEAN,
+    IsDetached BOOLEAN,
+
+    -- foreign key (from RentalProperty)
+    FOREIGN KEY (PropertyID) REFERENCES RentalProperty(ID) ON DELETE CASCADE
+);
+
+
+/*
+Entity: Room
+- Attribute: Num Roomates
+- Multivalue Attribute: Furnishings
+- Attribute: Kitchen Privileges
+*/
+CREATE TABLE Room(
+    -- primary key
+    PropertyID INT NOT NULL PRIMARY KEY,
+
+    -- attributes
+    NumRoommates INT,
+    KitchenPrivileges BOOLEAN,
+
+    -- foreign key (from RentalProperty)
+    FOREIGN KEY (PropertyID) REFERENCES RentalProperty(ID) ON DELETE CASCADE
+);
+
+
+/*
+Entity: Apartment
+- Attribute: Floor
+- Attribute: Elevator
+*/
+CREATE TABLE Apartment(
+    -- primary key
+    PropertyID INT NOT NULL PRIMARY KEY,
+
+    -- attributes
+    Floor INT,
+    Elevator BOOLEAN,
+
+    -- foreign key (from RentalProperty)
+    FOREIGN KEY (PropertyID) REFERENCES RentalProperty(ID) ON DELETE CASCADE
+);
+
+
+/*
+Entity: Rental Group
+- Attribute: Preferences (Accessibility, Property Type, Max Cost, Laundry, Parking, Num bathrooms, Num bedrooms)
+- Primary Key Attribute: Code
+*/
+CREATE TABLE RentalGroup(
+    -- primary key
+    code VARCHAR(255) NOT NULL PRIMARY KEY,
+
+    -- attributes
+    parking BOOLEAN,
+    accessibility BOOLEAN,
+    laundry BOOLEAN,
+    numBeds INT,
+    numBaths INT,
+    maxCost DECIMAL(10, 2),
+    rentalType VARCHAR(255)
+);
+
+
+/*
+Entity: Renter
+- Attribute: Grad Year
+- Attribute: Student ID
+- Attribute: Program
+- relationship between Renter and Rental Group (1:N)
+*/
+CREATE TABLE Renter(
+    -- primary key
+    PersonID VARCHAR(5) NOT NULL PRIMARY KEY,
+
+    -- relationship
+    RentalGroupCode VARCHAR(255),
+
+    -- attributes
+    GradYear YEAR,
+    StudentID CHAR(8),
+    Program VARCHAR(255),
+
+    -- foreign key (from Person)
+    FOREIGN KEY (PersonID) REFERENCES Person(ID) ON DELETE CASCADE,
+    FOREIGN KEY (RentalGroupCode) REFERENCES RentalGroup(Code) ON DELETE CASCADE
+);
+
+
+/*
+Entity: Property Manager
+*/
+CREATE TABLE PropertyManager(
+    -- primary key
+    PersonID VARCHAR(5) NOT NULL PRIMARY KEY,
+
+    -- foreign key (from Person)
+    FOREIGN KEY (PersonID) REFERENCES Person(ID) ON DELETE CASCADE
+);
+
+
+/*
+Entity: Owner
+*/
+CREATE TABLE Owner(
+    -- primary key
+    PersonID VARCHAR(5) NOT NULL PRIMARY KEY,
+
+    -- foreign key (from Person)
+    FOREIGN KEY (PersonID) REFERENCES Person(ID) ON DELETE CASCADE
+);
+
+
+/*
+Relationship: Rental Agreement
+- Attribute: Rent
+- Attribute: Signed date
+- Attribute: End date
+- relationship between Rental Group and Rental Property (1:1)
+*/
+CREATE TABLE RentalAgreement(
+    -- primary key (composite)
+    RentalGroupCode VARCHAR(255) NOT NULL,
+    RentalPropertyID INT NOT NULL,
+    PRIMARY KEY (RentalGroupCode), -- only one primary key needed for 1:1
+    
+    -- attributes
+    Rent DECIMAL(10, 2),
+    SignedDate DATE,
+    EndDate DATE,
+    
+    -- foreign key (from RentalGroup)
+    FOREIGN KEY (RentalGroupCode) REFERENCES RentalGroup(Code) ON DELETE CASCADE,
+    FOREIGN KEY (RentalPropertyID) REFERENCES RentalProperty(ID) ON DELETE CASCADE
+);
+
+
+/*
+Relationship: Ownership
+- no attributes
+- relationship between Owner and Rental Property (N:M)
+*/
+CREATE TABLE Ownership(
+    -- primary key (composite)
+    OwnerID VARCHAR(5) NOT NULL,
+    PropertyID INT NOT NULL,
+    PRIMARY KEY (OwnerID, PropertyID),
+
+    -- foreign key (from Owner and RentalProperty)
+    FOREIGN KEY (OwnerID) REFERENCES Owner(PersonID) ON DELETE CASCADE,
+    FOREIGN KEY (PropertyID) REFERENCES RentalProperty(ID) ON DELETE CASCADE
+);
+
+
+/*
+Relationship: Manages
+- Attribute: Year Managed
+- relationship between Property Manager and Rental Property with Year Managed 1:N
+*/
+CREATE TABLE Manages(
+    -- primary key (composite)
+    PropertyManagerID VARCHAR(5) NOT NULL,
+    PropertyID INT NOT NULL,
+    PRIMARY KEY (PropertyManagerID, PropertyID),
+
+    -- attribute
+    YearManaged YEAR,
+
+    -- foreign key (from PropertyManager and RentalProperty)
+    FOREIGN KEY (PropertyManagerID) REFERENCES PropertyManager(PersonID) ON DELETE CASCADE, 
+    FOREIGN KEY (PropertyID) REFERENCES RentalProperty(ID) ON DELETE CASCADE
+);
+
+
+/*
+Table: Room Furnishings
+- used to store the multivalue attribute for Room's Furnishings
+- this is done once again to handle the multivalue attribute
+*/
+CREATE TABLE RoomFurnishings(
+    -- primary key (composite)
+    RoomID INT NOT NULL,
+    PRIMARY KEY (RoomID, Furnishing),
+
+    -- multivalue attribute
+    Furnishing VARCHAR(255) NOT NULL,
+
+    -- foreign key (from Room)
+    FOREIGN KEY (RoomID) REFERENCES Room(PropertyID) ON DELETE CASCADE
+);
+
+
+
+
+/* Enter some people into our database */
+INSERT INTO Person (ID, fname, lname, phoneNum) VALUES
+-- renters
+('RE001', 'Emily', 'Turner', '6475551001'),
+('RE002', 'Lucas', 'Johnson', '6475551002'),
+('RE003', 'Zoe', 'Williams', '6475551003'),
+('RE004', 'Ethan', 'Brown', '6475551004'),
+('RE005', 'Mia', 'Jones', '6475551005'),
+('RE006', 'Noah', 'Garcia', '6475551006'),
+('RE007', 'Sophia', 'Miller', '6475551007'),
+('RE008', 'Liam', 'Davis', '6475551008'),
+('RE009', 'Olivia', 'Rodriguez', '6475551009'),
+('RE010', 'Jacob', 'Martinez', '6475551010'),
+('RE011', 'Ava', 'Hernandez', '6475551011'),
+('RE012', 'Mason', 'Lopez', '6475551012'),
+('RE013', 'Isabella', 'Gonzalez', '6475551013'),
+('RE014', 'William', 'Wilson', '6475551014'),
+('RE015', 'Sophie', 'Anderson', '6475551015'),
+('RE016', 'James', 'Thomas', '6475551016'),
+('RE017', 'Amelia', 'Taylor', '6475551017'),
+('RE018', 'Benjamin', 'Moore', '6475551018'),
+('RE019', 'Ella', 'Jackson', '6475551019'),
+('RE020', 'Alexander', 'Martin', '6475551020'),
+-- owners
+('OW001', 'Charlotte', 'Lee', '6475551021'),
+('OW002', 'Oliver', 'Perez', '6475551022'),
+('OW003', 'Isaac', 'Thompson', '6475551023'),
+('OW004', 'Lily', 'White', '6475551024'),
+('OW005', 'Gabriel', 'Harris', '6475551025'),
+('OW006', 'Chloe', 'Clark', '6475551026'),
+('OW007', 'Daniel', 'Lewis', '6475551027'),
+('OW008', 'Madison', 'Walker', '6475551028'),
+('OW009', 'Matthew', 'Hall', '6475551029'),
+('OW010', 'Aubrey', 'Allen', '6475551030'),
+-- managers
+('MA001', 'Ryan', 'Young', '6475551031'),
+('MA002', 'Grace', 'King', '6475551032'),
+('MA003', 'Jack', 'Wright', '6475551033'),
+('MA004', 'Victoria', 'Scott', '6475551034'),
+('MA005', 'Logan', 'Adams', '6475551035');
+
+/* Create some properties, then add which property is a house, apartment, or room */
+INSERT INTO RentalProperty (ID, Accessibility, Date, Cost, Laundry, NumBedrooms, NumBathrooms, Parking, Street, City, Province, PostalCode, ApartmentNum) VALUES
+-- rooms
+(1, TRUE, '2024-01-01', 400.00, TRUE, 1, 1, FALSE, '100 Queen St', 'Kingston', 'ON', 'K7K1A5', NULL),
+(2, FALSE, '2024-01-02', 420.00, FALSE, 1, 1, TRUE, '101 King St E', 'Kingston', 'ON', 'K7K2A5', NULL),
+(3, TRUE, '2024-01-03', 430.00, TRUE, 1, 1, FALSE, '102 Princess St', 'Kingston', 'ON', 'K7L1A7', NULL),
+(4, FALSE, '2024-01-04', 450.00, FALSE, 1, 1, TRUE, '103 Ontario St', 'Kingston', 'ON', 'K7L2Y6', NULL),
+(5, TRUE, '2024-01-05', 460.00, TRUE, 1, 1, FALSE, '104 Division St', 'Kingston', 'ON', 'K7L3M6', NULL),
+(6, FALSE, '2024-01-06', 470.00, FALSE, 1, 1, TRUE, '105 Earl St', 'Kingston', 'ON', 'K7L2H3', NULL),
+(7, TRUE, '2024-01-07', 480.00, TRUE, 1, 1, FALSE, '106 Union St', 'Kingston', 'ON', 'K7L3N6', NULL),
+(8, FALSE, '2024-01-08', 490.00, FALSE, 1, 1, TRUE, '107 Wellington St', 'Kingston', 'ON', 'K7L3C8', NULL),
+(9, TRUE, '2024-01-09', 500.00, TRUE, 1, 1, FALSE, '108 Bagot St', 'Kingston', 'ON', 'K7L3E5', NULL),
+(10, FALSE, '2024-01-10', 510.00, FALSE, 1, 1, TRUE, '109 Brock St', 'Kingston', 'ON', 'K7L1S2', NULL),
+
+-- houses
+(11, TRUE, '2024-02-01', 1500.00, TRUE, 3, 2, TRUE, '200 Queen St', 'Kingston', 'ON', 'K7K1B2', NULL),
+(12, TRUE, '2024-02-02', 1600.00, TRUE, 4, 2, TRUE, '201 King St E', 'Kingston', 'ON', 'K7K2Y1', NULL),
+(13, TRUE, '2024-02-03', 1700.00, TRUE, 3, 2, FALSE, '202 Princess St', 'Kingston', 'ON', 'K7L1B2', NULL),
+(14, TRUE, '2024-02-04', 1800.00, TRUE, 4, 3, TRUE, '203 Ontario St', 'Kingston', 'ON', 'K7L2Z1', NULL),
+(15, TRUE, '2024-02-05', 1900.00, TRUE, 3, 2, FALSE, '204 Division St', 'Kingston', 'ON', 'K7L3M9', NULL),
+(16, TRUE, '2024-02-06', 2000.00, TRUE, 4, 3, TRUE, '205 Earl St', 'Kingston', 'ON', 'K7L2J1', NULL),
+(17, TRUE, '2024-02-07', 2100.00, TRUE, 3, 2, FALSE, '206 Union St', 'Kingston', 'ON', 'K7L3N9', NULL),
+(18, TRUE, '2024-02-08', 2200.00, TRUE, 4, 3, TRUE, '207 Wellington St', 'Kingston', 'ON', 'K7L3C9', NULL),
+(19, TRUE, '2024-02-09', 2300.00, TRUE, 3, 2, FALSE, '208 Bagot St', 'Kingston', 'ON', 'K7L3G5', NULL),
+(20, TRUE, '2024-02-10', 2400.00, TRUE, 4, 3, TRUE, '209 Brock St', 'Kingston', 'ON', 'K7L1S3', NULL),
+
+-- apartments
+(21, TRUE, '2024-03-01', 550.00, FALSE, 1, 1, TRUE, '300 Queen St', 'Kingston', 'ON', 'K7K1B3', 'A101'),
+(22, TRUE, '2024-03-02', 600.00, FALSE, 2, 1, TRUE, '301 King St E', 'Kingston', 'ON', 'K7K2Y2', 'A102'),
+(23, TRUE, '2024-03-03', 650.00, TRUE, 1, 1, TRUE, '302 Princess St', 'Kingston', 'ON', 'K7L1B3', 'A103'),
+(24, TRUE, '2024-03-04', 700.00, FALSE, 2, 2, TRUE, '303 Ontario St', 'Kingston', 'ON', 'K7L2Z2', 'A104'),
+(25, TRUE, '2024-03-05', 750.00, TRUE, 1, 1, TRUE, '304 Division St', 'Kingston', 'ON', 'K7L3M0', 'A105'),
+(26, TRUE, '2024-03-06', 800.00, FALSE, 2, 2, TRUE, '305 Earl St', 'Kingston', 'ON', 'K7L2J2', 'A106'),
+(27, TRUE, '2024-03-07', 850.00, TRUE, 1, 1, TRUE, '306 Union St', 'Kingston', 'ON', 'K7L3P0', 'A107'),
+(28, TRUE, '2024-03-08', 900.00, FALSE, 2, 2, TRUE, '307 Wellington St', 'Kingston', 'ON', 'K7L3G6', 'A108'),
+(29, TRUE, '2024-03-09', 950.00, TRUE, 1, 1, TRUE, '308 Bagot St', 'Kingston', 'ON', 'K7L3G6', 'A109'),
+(30, TRUE, '2024-03-10', 1000.00, FALSE, 2, 2, TRUE, '309 Brock St', 'Kingston', 'ON', 'K7L1S4', 'A110');
+
+INSERT INTO Room (PropertyID, NumRoommates, KitchenPrivileges) VALUES
+(1, 3, TRUE),
+(2, 2, FALSE),
+(3, 2, TRUE),
+(4, 2, FALSE),
+(5, 3, TRUE),
+(6, 1, FALSE),
+(7, 1, TRUE),
+(8, 2, FALSE),
+(9, 2, TRUE),
+(10, 1, FALSE);
+
+INSERT INTO RoomFurnishings (RoomID, Furnishing) VALUES
+(1, 'Desk'),
+(1, 'Bed'),
+(1, 'Wardrobe'),
+(2, 'Desk'),
+(2, 'Chair'),
+(3, 'Desk'),
+(3, 'Bed'),
+(4, 'Chair'),
+(5, 'Desk'),
+(5, 'Bed'),
+(6, 'Chair'),
+(7, 'Desk'),
+(8, 'Chair'),
+(9, 'Desk'),
+(10, 'Chair');
+
+INSERT INTO House (PropertyID, FencedYard, IsDetached) VALUES
+(11, TRUE, TRUE),
+(12, FALSE, FALSE),
+(13, TRUE, FALSE),
+(14, FALSE, TRUE),
+(15, TRUE, TRUE),
+(16, FALSE, FALSE),
+(17, TRUE, FALSE),
+(18, FALSE, TRUE),
+(19, TRUE, TRUE),
+(20, FALSE, FALSE);
+
+INSERT INTO Apartment (PropertyID, Floor, Elevator) VALUES
+(21, 1, FALSE),
+(22, 2, TRUE),
+(23, 3, FALSE),
+(24, 4, TRUE),
+(25, 5, FALSE),
+(26, 6, TRUE),
+(27, 7, FALSE),
+(28, 8, TRUE),
+(29, 9, FALSE),
+(30, 10, TRUE);
+
+/* Create some rental groups, add people inside them, create rental agreements */
+INSERT INTO RentalGroup (code, parking, accessibility, laundry, numBeds, numBaths, maxCost, rentalType) VALUES
+('RG001', 0, 0, 1, 1, 1, 500.00, 'Room'),
+('RG002', 0, 0, 0, 3, 2, 1300.00, 'House'),
+('RG003', 0, 1, 1, 2, 3, 1000.00, 'Apartment'),
+('RG004', 1, 1, 0, 4, 4, 1500.00, 'Apartment'),
+('RG005', 1, 0, 1, 2, 1, 800.00, 'Room'),
+('RG006', 1, 0, 0, 3, 3, 2000.00, 'House');
+
+INSERT INTO RentalAgreement (RentalGroupCode, RentalPropertyID, Rent, SignedDate, EndDate) VALUES
+('RG001', 1, 1200.00, '2024-01-10', '2025-01-09'),
+('RG002', 3, 1500.00, '2024-03-15', '2025-03-14'),
+('RG003', 2, 800.00, '2024-02-20', '2025-02-19'),
+('RG004', 4, 950.00, '2024-04-25', '2025-04-24'),
+('RG005', 5, 400.00, '2024-05-30', '2025-05-29'),
+('RG006', 7, 1400.00, '2024-06-30', '2025-06-29');
+
+
+/* Add people into their respective tables */
+INSERT INTO Renter (PersonID, RentalGroupCode, GradYear, StudentID, Program) VALUES
+('RE001', 'RG001', 2024, 'S10001', 'Business'),
+('RE002', 'RG002', 2023, 'S10002', 'Engineering'),
+('RE003', 'RG003', 2025, 'S10003', 'Health Sciences'),
+('RE004', 'RG004', 2024, 'S10004', 'Arts & Science'),
+('RE005', 'RG005', 2026, 'S10005', 'Computer Science'),
+('RE006', 'RG006', 2023, 'S10006', 'Kinesiology'),
+('RE007', 'RG001', 2025, 'S10007', 'Economics'),
+('RE008', 'RG002', 2026, 'S10008', 'Psychology'),
+('RE009', 'RG003', 2024, 'S10009', 'Political Science'),
+('RE010', 'RG004', 2023, 'S10010', 'Mathematics'),
+('RE011', 'RG005', 2025, 'S10011', 'Biology'),
+('RE012', 'RG006', 2024, 'S10012', 'History'),
+('RE013', 'RG001', 2026, 'S10013', 'English Literature'),
+('RE014', 'RG002', 2023, 'S10014', 'Physics'),
+('RE015', 'RG003', 2025, 'S10015', 'Chemistry'),
+('RE016', 'RG004', 2026, 'S10016', 'Environmental Science'),
+('RE017', 'RG005', 2024, 'S10017', 'Sociology'),
+('RE018', 'RG006', 2023, 'S10018', 'Philosophy'),
+('RE019', 'RG001', 2025, 'S10019', 'Fine Arts'),
+('RE020', 'RG002', 2026, 'S10020', 'Music');
+
+
+INSERT INTO Owner (PersonID) VALUES
+('OW001'),
+('OW002'),
+('OW003'),
+('OW004'),
+('OW005'),
+('OW006'),
+('OW007'),
+('OW008'),
+('OW009'),
+('OW010');
+
+INSERT INTO PropertyManager (PersonID) VALUES
+('MA001'),
+('MA002'),
+('MA003'),
+('MA004'),
+('MA005');
+
+
+/* Create some ownership and management relationships */
+INSERT INTO Ownership (OwnerID, PropertyID) VALUES
+('OW001', 1),
+('OW002', 2),
+('OW003', 3),
+('OW004', 4),
+('OW005', 5),
+('OW006', 6),
+('OW007', 7),
+('OW008', 8),
+('OW009', 9),
+('OW010', 10),
+('OW001', 11),
+('OW002', 12),
+('OW003', 13),
+('OW004', 14),
+('OW005', 15),
+('OW006', 16),
+('OW007', 17),
+('OW008', 18),
+('OW009', 19),
+('OW010', 20),
+('OW001', 21),
+('OW002', 22),
+('OW003', 23),
+('OW004', 24),
+('OW005', 25),
+('OW006', 26),
+('OW007', 27),
+('OW008', 28),
+('OW009', 29),
+('OW010', 30);
+
+
+INSERT INTO Manages (PropertyManagerID, PropertyID, YearManaged) VALUES
+('MA001', 1, 2024),
+('MA002', 2, 2024),
+('MA003', 3, 2024),
+('MA001', 4, 2024),
+('MA002', 5, 2024),
+('MA003', 6, 2024),
+('MA001', 7, 2024),
+('MA002', 8, 2024),
+('MA003', 9, 2024),
+('MA004', 10, 2024),
+('MA005', 11, 2024),
+('MA001', 12, 2024),
+('MA002', 13, 2024),
+('MA003', 14, 2024),
+('MA004', 15, 2024),
+('MA005', 16, 2024),
+('MA001', 17, 2024),
+('MA002', 18, 2024),
+('MA003', 19, 2024),
+('MA004', 20, 2024),
+('MA005', 21, 2024),
+('MA001', 22, 2024),
+('MA002', 23, 2024),
+('MA003', 24, 2024),
+('MA004', 25, 2024),
+('MA005', 26, 2024),
+('MA001', 27, 2024),
+('MA002', 28, 2024),
+('MA003', 29, 2024),
+('MA004', 30, 2024);
